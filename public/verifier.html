@@ -1,602 +1,571 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Certificate Verifier</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- Use a specific working version of the QR library -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.4/html5-qrcode.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Certificate Verifier</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- QR Code Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.4/html5-qrcode.min.js"></script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="container">
-            <div class="nav-brand">
-                <h2>🔍 Certificate Verifier</h2>
-            </div>
-            <div class="nav-menu">
-                <span id="username-display"></span>
-                <button onclick="logout()" class="btn btn-outline">Logout</button>
-            </div>
-        </div>
-    </nav>
-
+  <nav class="navbar">
     <div class="container">
-        <div class="verifier-panel">
-            <!-- Verification Methods -->
-            <div class="section">
-                <h3>🛡️ Verify Certificate</h3>
-                <div class="verification-methods">
-
-                    <!-- Method 1: QR Code Scanner -->
-                    <div class="method-card">
-                        <div class="method-icon">📱</div>
-                        <h4>Scan QR Code</h4>
-                        <p>Upload an image containing the QR code or use camera</p>
-
-                        <div style="margin-bottom: 1rem;">
-                            <button id="camera-btn" onclick="toggleCamera()" class="btn btn-primary">
-                                📹 Use Camera
-                            </button>
-                        </div>
-
-                        <!-- Camera View -->
-                        <div id="camera-section" style="display: none;">
-                            <div id="qr-reader" style="width: 300px; height: 200px; margin: 0 auto 1rem auto; border: 2px solid var(--border-primary); border-radius: 8px;"></div>
-                            <button onclick="stopCamera()" class="btn btn-secondary">Stop Camera</button>
-                        </div>
-
-                        <!-- QR Image Upload -->
-                        <div class="form-group">
-                            <label>Or upload QR code image:</label>
-                            <div class="file-upload">
-                                <input type="file" id="qr-image" accept="image/*">
-                                <label for="qr-image" class="file-upload-label">
-                                    <span class="upload-icon">🖼️</span>
-                                    <span id="qr-image-label">Choose QR Image</span>
-                                </label>
-                            </div>
-                        </div>
-                        <button onclick="scanQRImage()" class="btn btn-primary">
-                            🔍 Verify QR Code
-                        </button>
-
-                        <!-- Debug Info -->
-                        <div id="qr-debug" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; font-size: 12px; color: var(--text-muted); max-height: 200px; overflow-y: auto;"></div>
-                    </div>
-
-                    <!-- Method 2: Certificate ID -->
-                    <div class="method-card">
-                        <div class="method-icon">🆔</div>
-                        <h4>Certificate ID</h4>
-                        <p>Enter the certificate ID (format: CERT-XXXXXXXX)</p>
-                        <div class="form-group">
-                            <input type="text" id="cert-id" placeholder="CERT-A1B2C3D4" style="text-transform: uppercase;">
-                        </div>
-                        <button onclick="verifyID()" class="btn btn-primary">
-                            🔍 Verify ID
-                        </button>
-                    </div>
-
-                    <!-- Method 3: File Upload -->
-                    <div class="method-card">
-                        <div class="method-icon">📄</div>
-                        <h4>Upload Certificate</h4>
-                        <p>Upload the certificate file to verify authenticity</p>
-                        <div class="form-group">
-                            <div class="file-upload">
-                                <input type="file" id="cert-file" accept=".pdf,.jpg,.jpeg,.png">
-                                <label for="cert-file" class="file-upload-label">
-                                    <span class="upload-icon">📁</span>
-                                    <span id="cert-file-label">Choose Certificate File</span>
-                                </label>
-                            </div>
-                        </div>
-                        <button onclick="verifyFile()" class="btn btn-primary">
-                            🔍 Verify File
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Results -->
-            <div class="section">
-                <h3>📊 Verification Results</h3>
-                <div id="results">
-                    <div class="placeholder">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
-                        <p>Select a verification method above</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Quick Actions -->
-            <div class="section">
-                <h3>⚡ Actions</h3>
-                <button onclick="clearAll()" class="btn btn-secondary">🗑️ Clear All</button>
-            </div>
-        </div>
+      <div class="nav-brand">
+        <h2>Certificate Verifier</h2>
+      </div>
+      <div class="nav-menu">
+        <span id="username-display"></span>
+        <button onclick="logout()" class="btn btn-outline">Logout</button>
+      </div>
     </div>
-
-    <script src="script.js"></script>
-    <script>
-        // Check login
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        if (!user.username || (user.role !== 'verifier' && user.role !== 'admin')) {
-            window.location.href = 'index.html';
-        }
-        document.getElementById('username-display').textContent = `Welcome, ${user.username}`;
-
-        let html5QrCode = null;
-        let isScanning = false;
-
-        // Debug logging function
-        function debugLog(message, isError = false) {
-            const debugDiv = document.getElementById('qr-debug');
-            const timestamp = new Date().toLocaleTimeString();
-            const color = isError ? 'color: #ef4444;' : 'color: #10b981;';
-            debugDiv.innerHTML += `<div style="${color}">[${timestamp}] ${message}</div>`;
-            debugDiv.style.display = 'block';
-            debugDiv.scrollTop = debugDiv.scrollHeight;
-            console.log(`[QR Debug] ${message}`);
-        }
-
-        // Clear debug messages
-        function clearDebug() {
-            document.getElementById('qr-debug').style.display = 'none';
-            document.getElementById('qr-debug').innerHTML = '';
-        }
-
-        // Toggle Camera
-        async function toggleCamera() {
-            if (isScanning) {
-                stopCamera();
-                return;
-            }
-
-            try {
-                clearDebug();
-                debugLog('📹 Starting camera...');
-
-                document.getElementById('camera-section').style.display = 'block';
-                document.getElementById('camera-btn').textContent = '🛑 Stop Camera';
-
-                html5QrCode = new Html5Qrcode("qr-reader");
-                await html5QrCode.start(
-                    { facingMode: "environment" },
-                    { fps: 10, qrbox: { width: 250, height: 250 } },
-                    (qrText) => {
-                        debugLog('✅ Camera detected QR: ' + qrText.substring(0, 50) + '...');
-                        stopCamera();
-                        processQRCode(qrText, 'camera');
-                    }
-                );
-                isScanning = true;
-                debugLog('✅ Camera started successfully');
-                showNotification('Camera started - point at QR code', 'info');
-            } catch (error) {
-                debugLog('❌ Camera error: ' + error.message, true);
-                showNotification('Camera failed: ' + error.message, 'error');
-                stopCamera();
-            }
-        }
-
-        function stopCamera() {
-            if (html5QrCode && isScanning) {
-                html5QrCode.stop().catch(err => console.log('Stop camera error:', err));
-                html5QrCode = null;
-                isScanning = false;
-            }
-            document.getElementById('camera-section').style.display = 'none';
-            document.getElementById('camera-btn').textContent = '📹 Use Camera';
-        }
-
-        // Fixed QR scanning for images using correct API
-        async function scanQRImage() {
-            const file = document.getElementById('qr-image').files[0];
-            if (!file) {
-                showNotification('Please select an image', 'warning');
-                return;
-            }
-
-            clearDebug();
-            debugLog('🖼️ Starting QR scan from image: ' + file.name);
-            debugLog('📊 File size: ' + Math.round(file.size/1024) + ' KB');
-            debugLog('📊 File type: ' + file.type);
-
-            try {
-                showLoading('Scanning QR code from image...');
-
-                // Check if Html5QrcodeScanner.scanFile exists
-                debugLog('🔍 Checking available scanning methods...');
-
-                if (typeof Html5QrcodeScanner !== 'undefined' && Html5QrcodeScanner.scanFile) {
-                    debugLog('📱 Using Html5QrcodeScanner.scanFile method');
-                    try {
-                        const qrText = await Html5QrcodeScanner.scanFile(file, true);
-                        debugLog('✅ QR detected via Html5QrcodeScanner: ' + qrText.substring(0, 50) + '...');
-                        processQRCode(qrText, 'image_upload');
-                        return;
-                    } catch (err) {
-                        debugLog('❌ Html5QrcodeScanner.scanFile failed: ' + err.message, true);
-                    }
-                }
-
-                // Try using temporary scanner instance
-                if (typeof Html5Qrcode !== 'undefined') {
-                    debugLog('📱 Using temporary Html5Qrcode instance');
-
-                    const tempScannerId = 'temp-scanner-' + Date.now();
-                    const tempDiv = document.createElement('div');
-                    tempDiv.id = tempScannerId;
-                    tempDiv.style.position = 'absolute';
-                    tempDiv.style.left = '-9999px';
-                    tempDiv.style.width = '1px';
-                    tempDiv.style.height = '1px';
-                    document.body.appendChild(tempDiv);
-
-                    try {
-                        const tempScanner = new Html5Qrcode(tempScannerId);
-
-                        // Check if scanFile method exists on instance
-                        if (tempScanner.scanFile) {
-                            debugLog('🔍 Using instance scanFile method');
-                            const qrText = await tempScanner.scanFile(file, true);
-                            debugLog('✅ QR detected via instance: ' + qrText.substring(0, 50) + '...');
-                            document.body.removeChild(tempDiv);
-                            processQRCode(qrText, 'image_upload');
-                            return;
-                        } else {
-                            debugLog('❌ scanFile method not available on instance', true);
-                        }
-
-                        document.body.removeChild(tempDiv);
-                    } catch (err) {
-                        debugLog('❌ Temporary scanner failed: ' + err.message, true);
-                        if (document.body.contains(tempDiv)) {
-                            document.body.removeChild(tempDiv);
-                        }
-                    }
-                }
-
-                // Fallback: Use canvas-based QR detection
-                debugLog('🔄 Trying canvas-based QR detection...');
-                const qrText = await scanQRFromCanvas(file);
-                debugLog('✅ QR detected via canvas method: ' + qrText.substring(0, 50) + '...');
-                processQRCode(qrText, 'canvas_method');
-
-            } catch (error) {
-                debugLog('❌ All scanning methods failed: ' + error.message, true);
-                showNotification('No QR code found in this image. Please try a different image or use camera scanning.', 'error');
-                clearResults();
-            }
-        }
-
-        // Canvas-based QR detection using external library
-        async function scanQRFromCanvas(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
-                        try {
-                            // Create canvas
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-
-                            // Set canvas size to image size
-                            canvas.width = img.width;
-                            canvas.height = img.height;
-
-                            // Draw image to canvas
-                            ctx.drawImage(img, 0, 0);
-
-                            // Get image data
-                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-                            // Use jsQR library if available (load it dynamically)
-                            loadJsQR().then((jsQR) => {
-                                if (jsQR) {
-                                    debugLog('🔍 Using jsQR library for detection');
-                                    const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-                                    if (code) {
-                                        debugLog('✅ jsQR detected QR code');
-                                        resolve(code.data);
-                                    } else {
-                                        debugLog('❌ jsQR could not detect QR code', true);
-                                        reject(new Error('No QR code found in image'));
-                                    }
-                                } else {
-                                    // Manual QR detection attempt (basic)
-                                    debugLog('🔄 Attempting manual QR pattern detection...');
-                                    const manualResult = attemptManualQRDetection(imageData);
-                                    if (manualResult) {
-                                        resolve(manualResult);
-                                    } else {
-                                        reject(new Error('Manual QR detection failed'));
-                                    }
-                                }
-                            }).catch(err => {
-                                reject(new Error('QR detection library failed: ' + err.message));
-                            });
-
-                        } catch (error) {
-                            reject(new Error('Canvas processing failed: ' + error.message));
-                        }
-                    };
-                    img.onerror = () => reject(new Error('Failed to load image'));
-                    img.src = e.target.result;
-                };
-                reader.onerror = () => reject(new Error('Failed to read file'));
-                reader.readAsDataURL(file);
-            });
-        }
-
-        // Load jsQR library dynamically
-        function loadJsQR() {
-            return new Promise((resolve) => {
-                if (window.jsQR) {
-                    resolve(window.jsQR);
-                    return;
-                }
-
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-                script.onload = () => resolve(window.jsQR);
-                script.onerror = () => resolve(null);
-                document.head.appendChild(script);
-            });
-        }
-
-        // Basic manual QR pattern detection (fallback)
-        function attemptManualQRDetection(imageData) {
-            debugLog('🔧 Manual QR detection not implemented - this is a fallback placeholder');
-            return null; // This would need actual QR detection algorithm
-        }
-
-        // Process QR Code Data
-        async function processQRCode(qrText, source) {
-            try {
-                debugLog('🔍 Processing QR from ' + source);
-                debugLog('📝 QR length: ' + qrText.length + ' characters');
-
-                showLoading('Verifying QR code...');
-
-                // Validate QR format
-                let parsedQR;
-                try {
-                    parsedQR = JSON.parse(qrText);
-                    debugLog('✅ QR JSON parsing successful');
-                    debugLog('📋 Certificate ID: ' + (parsedQR.id || 'MISSING'));
-                    debugLog('🔑 Hash: ' + (parsedQR.hash ? parsedQR.hash.substring(0, 16) + '...' : 'MISSING'));
-                } catch (parseError) {
-                    debugLog('❌ QR JSON parsing failed: ' + parseError.message, true);
-                    throw new Error('QR code does not contain valid certificate data');
-                }
-
-                if (!parsedQR.id) {
-                    debugLog('❌ Certificate ID missing from QR', true);
-                    throw new Error('QR code missing certificate ID');
-                }
-
-                debugLog('🌐 Sending verification request to server...');
-
-                const response = await fetch('/api/verify-qr', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ qrData: qrText })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Server returned error: ' + response.status);
-                }
-
-                const result = await response.json();
-                debugLog('✅ Server response received: ' + result.status);
-                debugLog('💬 Message: ' + result.message);
-
-                showResult(result, `QR Code (${source})`);
-
-            } catch (error) {
-                debugLog('❌ Processing failed: ' + error.message, true);
-                showNotification('QR verification failed: ' + error.message, 'error');
-                clearResults();
-            }
-        }
-
-        // Verify Certificate ID
-        async function verifyID() {
-            const certId = document.getElementById('cert-id').value.trim().toUpperCase();
-
-            if (!certId) {
-                showNotification('Enter certificate ID', 'warning');
-                return;
-            }
-
-            if (!certId.match(/^CERT-[A-F0-9]{8}$/)) {
-                showNotification('Invalid ID format (CERT-XXXXXXXX)', 'warning');
-                return;
-            }
-
-            try {
-                showLoading('Verifying certificate ID...');
-
-                const response = await fetch(`/api/verify/${certId}`);
-                const result = await response.json();
-                showResult(result, 'Certificate ID');
-
-            } catch (error) {
-                console.error('ID verification error:', error);
-                showNotification('ID verification failed', 'error');
-                clearResults();
-            }
-        }
-
-        // Verify File Upload
-        async function verifyFile() {
-            const file = document.getElementById('cert-file').files[0];
-
-            if (!file) {
-                showNotification('Please select a file', 'warning');
-                return;
-            }
-
-            if (file.size > 10 * 1024 * 1024) {
-                showNotification('File too large (max 10MB)', 'warning');
-                return;
-            }
-
-            try {
-                showLoading('Verifying certificate file...');
-
-                const formData = new FormData();
-                formData.append('certificate', file);
-
-                const response = await fetch('/api/verify-file', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-                showResult(result, 'File Upload');
-
-            } catch (error) {
-                console.error('File verification error:', error);
-                showNotification('File verification failed', 'error');
-                clearResults();
-            }
-        }
-
-        // Show Results
-        function showResult(result, method) {
-            clearDebug(); // Hide debug info when showing results
-
-            let statusClass = 'warning';
-            let statusIcon = '❓';
-            let statusTitle = 'UNKNOWN';
-            let statusColor = '#f59e0b';
-
-            switch (result.status) {
-                case 'authentic':
-                    statusClass = 'success';
-                    statusIcon = '✅';
-                    statusTitle = 'AUTHENTIC';
-                    statusColor = '#16a34a';
-                    showNotification('Certificate is authentic!', 'success');
-                    break;
-                case 'forgery':
-                    statusClass = 'danger';
-                    statusIcon = '🚨';
-                    statusTitle = 'FORGERY DETECTED';
-                    statusColor = '#dc2626';
-                    showNotification('FORGERY DETECTED!', 'error');
-                    break;
-                case 'edited_duplicate':
-                    statusClass = 'danger';
-                    statusIcon = '⚠️';
-                    statusTitle = 'EDITED DUPLICATE';
-                    statusColor = '#dc2626';
-                    showNotification('Edited duplicate detected!', 'error');
-                    break;
-                case 'not_found':
-                    statusClass = 'warning';
-                    statusIcon = '❓';
-                    statusTitle = 'NOT FOUND';
-                    statusColor = '#f59e0b';
-                    showNotification('Certificate not found', 'warning');
-                    break;
-                default:
-                    showNotification('Verification error', 'error');
-            }
-
-            let html = `
-                <div class="result-card ${statusClass}">
-                    <h4 style="color: ${statusColor};">${statusIcon} ${statusTitle}</h4>
-                    <p><strong>Method:</strong> ${method}</p>
-                    <p><strong>Message:</strong> ${result.message}</p>
-            `;
-
-            if (result.certificate) {
-                html += `
-                    <div style="margin-top: 2rem; padding: 1.5rem; background: var(--bg-secondary); border-radius: 8px;">
-                        <h5>📋 Certificate Details</h5>
-                        <p><strong>ID:</strong> ${result.certificate.id}</p>
-                        <p><strong>Name:</strong> ${result.certificate.name}</p>
-                        <p><strong>Issued To:</strong> ${result.certificate.issuedTo || 'N/A'}</p>
-                        <p><strong>Issued By:</strong> ${result.certificate.issuedBy || 'N/A'}</p>
-                        <p><strong>Date:</strong> ${new Date(result.certificate.uploadDate).toLocaleDateString()}</p>
-                        <div style="margin-top: 1rem;">
-                            <a href="/verify/${result.certificate.id}" target="_blank" class="btn btn-outline" style="font-size: 12px;">
-                                🔗 Open Verification Page
-                            </a>
-                        </div>
-                    </div>
-                `;
-            }
-
-            if (result.originalCertificate) {
-                html += `
-                    <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(220, 38, 38, 0.1); border-radius: 8px; border: 1px solid rgba(220, 38, 38, 0.3);">
-                        <h5>🚨 Original Certificate Found</h5>
-                        <p><strong>Original:</strong> ${result.originalCertificate.name} (${result.originalCertificate.id})</p>
-                        <p style="color: var(--danger); font-weight: bold;">
-                            This appears to be an edited version of the original certificate.
-                        </p>
-                    </div>
-                `;
-            }
-
-            html += '</div>';
-            document.getElementById('results').innerHTML = html;
-        }
-
-        // Helper Functions
-        function showLoading(message) {
-            document.getElementById('results').innerHTML = `
-                <div class="placeholder">
-                    <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
-                    <p>${message}</p>
-                </div>
-            `;
-        }
-
-        function clearResults() {
-            document.getElementById('results').innerHTML = `
-                <div class="placeholder">
-                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
-                    <p>Select a verification method above</p>
-                </div>
-            `;
-        }
-
-        function clearAll() {
-            document.getElementById('cert-id').value = '';
-            document.getElementById('cert-file').value = '';
-            document.getElementById('cert-file-label').textContent = 'Choose Certificate File';
-            document.getElementById('qr-image').value = '';
-            document.getElementById('qr-image-label').textContent = 'Choose QR Image';
+  </nav>
+
+  <div class="container">
+    <div class="verifier-panel">
+      <!-- Verification Methods -->
+      <div class="section">
+        <h3>Verify Certificate</h3>
+
+        <div class="verification-methods">
+          <!-- Method 1: QR Code Scanner -->
+          <div class="method-card">
+            <div class="method-icon">📱</div>
+            <h4>Scan QR Code</h4>
+            <p>Upload an image containing the QR code or use camera</p>
+
+            <div style="margin-bottom: 1rem;">
+              <button id="camera-btn" onclick="toggleCamera()" class="btn btn-primary">
+                Use Camera
+              </button>
+            </div>
+
+            <!-- Camera View -->
+            <div id="camera-section" style="display: none;">
+              <div id="qr-reader" style="width: 300px; height: 200px; margin: 0 auto 1rem auto; border: 2px solid var(--border-primary); border-radius: 8px;"></div>
+              <button onclick="stopCamera()" class="btn btn-secondary">Stop Camera</button>
+            </div>
+
+            <!-- QR Image Upload -->
+            <div class="form-group">
+              <label>Or upload QR code image</label>
+              <div class="file-upload">
+                <input type="file" id="qr-image" accept="image/*">
+                <label for="qr-image" class="file-upload-label">
+                  <span class="upload-icon">📄</span>
+                  <span id="qr-image-label">Choose QR Image</span>
+                </label>
+              </div>
+            </div>
+
+            <button onclick="scanQRImage()" class="btn btn-primary">Verify QR Code</button>
+
+            <!-- Debug Info -->
+            <div id="qr-debug" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; font-size: 12px; color: var(--text-muted); max-height: 200px; overflow-y: auto;"></div>
+          </div>
+
+          <!-- Method 2: Certificate ID -->
+          <div class="method-card">
+            <div class="method-icon">🔑</div>
+            <h4>Certificate ID</h4>
+            <p>Enter the certificate ID (format: CERT-XXXXXXXX)</p>
+
+            <div class="form-group">
+              <input type="text" id="cert-id" placeholder="CERT-A1B2C3D4" style="text-transform: uppercase;">
+            </div>
+
+            <button onclick="verifyID()" class="btn btn-primary">Verify ID</button>
+          </div>
+
+          <!-- Method 3: File Upload -->
+          <div class="method-card">
+            <div class="method-icon">📁</div>
+            <h4>Upload Certificate</h4>
+            <p>Upload the certificate file to verify authenticity</p>
+
+            <div class="form-group">
+              <div class="file-upload">
+                <input type="file" id="cert-file" accept=".pdf,.jpg,.jpeg,.png">
+                <label for="cert-file" class="file-upload-label">
+                  <span class="upload-icon">📄</span>
+                  <span id="cert-file-label">Choose Certificate File</span>
+                </label>
+              </div>
+            </div>
+
+            <button onclick="verifyFile()" class="btn btn-primary">Verify File</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="section">
+        <h3>Verification Results</h3>
+        <div id="results">
+          <div class="placeholder">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
+            <p>Select a verification method above</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="section">
+        <h3>Actions</h3>
+        <button onclick="clearAll()" class="btn btn-secondary">Clear All</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+
+  <script>
+    // Check login
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (!user || !user.username || (user.role !== "verifier" && user.role !== "admin")) {
+      window.location.href = "index.html";
+    }
+    document.getElementById("username-display").textContent = `Welcome, ${user.username}`;
+
+    let html5QrCode = null;
+    let isScanning = false;
+
+    // Debug logging function
+    function debugLog(message, isError = false) {
+      const debugDiv = document.getElementById("qr-debug");
+      const timestamp = new Date().toLocaleTimeString();
+      const color = isError ? "#ef4444" : "#10b981";
+      debugDiv.innerHTML += `<div style="color:${color}">${timestamp} ${message}</div>`;
+      debugDiv.style.display = "block";
+      debugDiv.scrollTop = debugDiv.scrollHeight;
+      console.log("QR Debug:", message);
+    }
+
+    function clearDebug() {
+      document.getElementById("qr-debug").style.display = "none";
+      document.getElementById("qr-debug").innerHTML = "";
+    }
+
+    // Toggle Camera
+    async function toggleCamera() {
+      if (isScanning) {
+        stopCamera();
+        return;
+      }
+
+      try {
+        clearDebug();
+        debugLog("Starting camera...");
+        document.getElementById("camera-section").style.display = "block";
+        document.getElementById("camera-btn").textContent = "Stop Camera";
+
+        html5QrCode = new Html5Qrcode("qr-reader");
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (qrText) => {
+            debugLog("Camera detected QR: " + qrText.substring(0, 50) + "...");
             stopCamera();
-            clearResults();
-            clearDebug();
-            showNotification('All cleared', 'info');
+            processQRCode(qrText, "camera");
+          }
+        );
+
+        isScanning = true;
+        debugLog("Camera started successfully");
+        showNotification("Camera started - point at QR code", "info");
+      } catch (error) {
+        debugLog("Camera error: " + error.message, true);
+        showNotification("Camera failed: " + error.message, "error");
+        stopCamera();
+      }
+    }
+
+    function stopCamera() {
+      if (html5QrCode && isScanning) {
+        html5QrCode.stop().catch((err) => console.log("Stop camera error:", err));
+        html5QrCode = null;
+        isScanning = false;
+      }
+      document.getElementById("camera-section").style.display = "none";
+      document.getElementById("camera-btn").textContent = "Use Camera";
+    }
+
+    // Fixed QR scanning for images
+    async function scanQRImage() {
+      const file = document.getElementById("qr-image").files[0];
+      if (!file) {
+        showNotification("Please select an image", "warning");
+        return;
+      }
+
+      clearDebug();
+      debugLog("Starting QR scan from image: " + file.name);
+      debugLog("File size: " + Math.round(file.size / 1024) + " KB");
+      debugLog("File type: " + file.type);
+
+      try {
+        showLoading("Scanning QR code from image...");
+
+        if (typeof Html5QrcodeScanner !== "undefined" && Html5QrcodeScanner.scanFile) {
+          debugLog("Using Html5QrcodeScanner.scanFile method");
+          try {
+            const qrText = await Html5QrcodeScanner.scanFile(file, true);
+            debugLog("QR detected via Html5QrcodeScanner: " + qrText.substring(0, 50) + "...");
+            processQRCode(qrText, "imageupload");
+            return;
+          } catch (err) {
+            debugLog("Html5QrcodeScanner.scanFile failed: " + err.message, true);
+          }
         }
 
-        // File input labels
-        document.getElementById('cert-file').addEventListener('change', function() {
-            document.getElementById('cert-file-label').textContent = 
-                this.files[0] ? this.files[0].name : 'Choose Certificate File';
+        // Fallback: Try canvas-based detection
+        debugLog("Trying canvas-based QR detection...");
+        const qrText = await scanQRFromCanvas(file);
+        debugLog("QR detected via canvas method: " + qrText.substring(0, 50) + "...");
+        processQRCode(qrText, "canvasmethod");
+      } catch (error) {
+        debugLog("All scanning methods failed: " + error.message, true);
+        showNotification(
+          "No QR code found in this image. Please try a different image or use camera scanning.",
+          "error"
+        );
+        clearResults();
+      }
+    }
+
+    // Canvas-based QR detection
+    async function scanQRFromCanvas(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          const img = new Image();
+
+          img.onload = function () {
+            try {
+              const canvas = document.createElement("canvas");
+              const ctx = canvas.getContext("2d");
+
+              canvas.width = img.width;
+              canvas.height = img.height;
+              ctx.drawImage(img, 0, 0);
+
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+              loadJsQR()
+                .then((jsQR) => {
+                  if (jsQR) {
+                    debugLog("Using jsQR library for detection");
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+                    if (code) {
+                      debugLog("jsQR detected QR code");
+                      resolve(code.data);
+                    } else {
+                      debugLog("jsQR could not detect QR code", true);
+                      reject(new Error("No QR code found in image"));
+                    }
+                  } else {
+                    reject(new Error("QR detection library failed"));
+                  }
+                })
+                .catch((err) => {
+                  reject(new Error("QR detection library failed: " + err.message));
+                });
+            } catch (error) {
+              reject(new Error("Canvas processing failed: " + error.message));
+            }
+          };
+
+          img.onerror = () => reject(new Error("Failed to load image"));
+          img.src = e.target.result;
+        };
+
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Load jsQR library dynamically
+    function loadJsQR() {
+      return new Promise((resolve) => {
+        if (window.jsQR) {
+          resolve(window.jsQR);
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
+        script.onload = () => resolve(window.jsQR);
+        script.onerror = () => resolve(null);
+        document.head.appendChild(script);
+      });
+    }
+
+    // Process QR Code Data
+    async function processQRCode(qrText, source) {
+      try {
+        debugLog("Processing QR from: " + source);
+        debugLog("QR length: " + qrText.length + " characters");
+
+        showLoading("Verifying QR code...");
+
+        let parsedQR;
+        try {
+          parsedQR = JSON.parse(qrText);
+          debugLog("QR JSON parsing successful");
+          debugLog("Certificate ID: " + (parsedQR.id || "MISSING"));
+          debugLog("Hash: " + (parsedQR.hash ? parsedQR.hash.substring(0, 16) + "..." : "MISSING"));
+        } catch (parseError) {
+          debugLog("QR JSON parsing failed: " + parseError.message, true);
+          throw new Error("QR code does not contain valid certificate data");
+        }
+
+        if (!parsedQR.id) {
+          debugLog("Certificate ID missing from QR", true);
+          throw new Error("QR code missing certificate ID");
+        }
+
+        debugLog("Sending verification request to server...");
+
+        const response = await fetch("/api/verify-qr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ qrData: qrText }),
         });
 
-        document.getElementById('qr-image').addEventListener('change', function() {
-            document.getElementById('qr-image-label').textContent = 
-                this.files[0] ? this.files[0].name : 'Choose QR Image';
+        if (!response.ok) {
+          throw new Error("Server returned error: " + response.status);
+        }
+
+        const result = await response.json();
+        debugLog("Server response received: " + result.status);
+        debugLog("Message: " + result.message);
+
+        showResult(result, "QR Code");
+      } catch (error) {
+        debugLog("Processing failed: " + error.message, true);
+        showNotification("QR verification failed: " + error.message, "error");
+        clearResults();
+      }
+    }
+
+    // Verify Certificate ID
+    async function verifyID() {
+      const certId = document.getElementById("cert-id").value.trim().toUpperCase();
+
+      if (!certId) {
+        showNotification("Enter certificate ID", "warning");
+        return;
+      }
+
+      if (!certId.match(/^CERT-[A-F0-9]{8}$/)) {
+        showNotification("Invalid ID format (CERT-XXXXXXXX)", "warning");
+        return;
+      }
+
+      try {
+        showLoading("Verifying certificate ID...");
+
+        const response = await fetch(`/api/verify/${certId}`);
+        const result = await response.json();
+
+        showResult(result, "Certificate ID");
+      } catch (error) {
+        console.error("ID verification error:", error);
+        showNotification("ID verification failed", "error");
+        clearResults();
+      }
+    }
+
+    // Verify File Upload
+    async function verifyFile() {
+      const file = document.getElementById("cert-file").files[0];
+
+      if (!file) {
+        showNotification("Please select a file", "warning");
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        showNotification("File too large (max 10MB)", "warning");
+        return;
+      }
+
+      try {
+        showLoading("Verifying certificate file...");
+
+        const formData = new FormData();
+        formData.append("certificate", file);
+
+        const response = await fetch("/api/verify-file", {
+          method: "POST",
+          body: formData,
         });
 
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', stopCamera);
+        const result = await response.json();
+        showResult(result, "File Upload");
+      } catch (error) {
+        console.error("File verification error:", error);
+        showNotification("File verification failed", "error");
+        clearResults();
+      }
+    }
 
-        console.log('🔍 Corrected QR Verifier loaded successfully');
-    </script>
+    // ✅ Show Results with "Already Verified" Status
+    function showResult(result, method) {
+      clearDebug();
+
+      let statusClass = "warning";
+      let statusIcon = "⚠";
+      let statusTitle = "UNKNOWN";
+      let statusColor = "#f59e0b";
+
+      switch (result.status) {
+        case "authentic":
+          statusClass = "success";
+          statusIcon = "✔";
+          statusTitle = "AUTHENTIC";
+          statusColor = "#16a34a";
+          showNotification("Certificate is authentic!", "success");
+          break;
+
+        case "alreadyverified":
+          statusClass = "info";
+          statusIcon = "✓";
+          statusTitle = "ALREADY VERIFIED";
+          statusColor = "#3b82f6";
+          showNotification("This certificate was already verified.", "info");
+          break;
+
+        case "forgery":
+          statusClass = "danger";
+          statusIcon = "✖";
+          statusTitle = "FORGERY DETECTED";
+          statusColor = "#dc2626";
+          showNotification("FORGERY DETECTED!", "error");
+          break;
+
+        case "editedduplicate":
+          statusClass = "danger";
+          statusIcon = "✖";
+          statusTitle = "EDITED DUPLICATE";
+          statusColor = "#dc2626";
+          showNotification("Edited duplicate detected!", "error");
+          break;
+
+        case "notfound":
+          statusClass = "warning";
+          statusIcon = "❓";
+          statusTitle = "NOT FOUND";
+          statusColor = "#f59e0b";
+          showNotification("Certificate not found", "warning");
+          break;
+
+        default:
+          showNotification("Verification error", "error");
+      }
+
+      let html = `
+        <div class="result-card ${statusClass}">
+          <h4 style="color: ${statusColor};">${statusIcon} ${statusTitle}</h4>
+          <p><strong>Method:</strong> ${method}</p>
+          <p><strong>Message:</strong> ${result.message}</p>
+      `;
+
+      if (result.lastVerifiedAt) {
+        html += `
+          <p style="margin-top: 1rem; padding: 0.5rem; background: rgba(59, 130, 246, 0.1); border-radius: 6px; color: #1e40af; font-weight: 500;">
+            ✓ Last verified on: ${new Date(result.lastVerifiedAt).toLocaleString()}
+          </p>
+        `;
+      }
+
+      if (result.certificate) {
+        html += `
+          <div style="margin-top: 2rem; padding: 1.5rem; background: var(--bg-secondary); border-radius: 8px;">
+            <h5>Certificate Details</h5>
+            <p><strong>ID:</strong> <span style="font-family: monospace; color: var(--primary);">${result.certificate.id}</span></p>
+            <p><strong>Name:</strong> <span>${result.certificate.name}</span></p>
+            <p><strong>Issued To:</strong> <span>${result.certificate.issuedTo || "NA"}</span></p>
+            <p><strong>Issued By:</strong> <span>${result.certificate.issuedBy || "NA"}</span></p>
+            <p><strong>Date:</strong> <span>${new Date(result.certificate.uploadDate).toLocaleDateString()}</span></p>
+
+            <div style="margin-top: 1rem;">
+              <a href="/verify/${result.certificate.id}" target="_blank" class="btn btn-outline" style="font-size: 12px;">
+                Open Verification Page
+              </a>
+            </div>
+          </div>
+        `;
+      }
+
+      if (result.originalCertificate) {
+        html += `
+          <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(220, 38, 38, 0.1); border-radius: 8px; border: 1px solid rgba(220, 38, 38, 0.3);">
+            <h5>Original Certificate Found</h5>
+            <p><strong>Original:</strong> ${result.originalCertificate.name} (${result.originalCertificate.id})</p>
+            <p style="color: var(--danger); font-weight: bold;">
+              This appears to be an edited version of the original certificate.
+            </p>
+          </div>
+        `;
+      }
+
+      html += `</div>`;
+
+      document.getElementById("results").innerHTML = html;
+    }
+
+    // Helper Functions
+    function showLoading(message) {
+      document.getElementById("results").innerHTML = `
+        <div class="placeholder">
+          <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
+          <p>${message}</p>
+        </div>
+      `;
+    }
+
+    function clearResults() {
+      document.getElementById("results").innerHTML = `
+        <div class="placeholder">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
+          <p>Select a verification method above</p>
+        </div>
+      `;
+    }
+
+    function clearAll() {
+      document.getElementById("cert-id").value = "";
+      document.getElementById("cert-file").value = "";
+      document.getElementById("cert-file-label").textContent = "Choose Certificate File";
+      document.getElementById("qr-image").value = "";
+      document.getElementById("qr-image-label").textContent = "Choose QR Image";
+      stopCamera();
+      clearResults();
+      clearDebug();
+      showNotification("All cleared", "info");
+    }
+
+    // File input labels
+    document.getElementById("cert-file").addEventListener("change", function () {
+      document.getElementById("cert-file-label").textContent = this.files[0]
+        ? this.files[0].name
+        : "Choose Certificate File";
+    });
+
+    document.getElementById("qr-image").addEventListener("change", function () {
+      document.getElementById("qr-image-label").textContent = this.files[0]
+        ? this.files[0].name
+        : "Choose QR Image";
+    });
+
+    // Cleanup on page unload
+    window.addEventListener("beforeunload", stopCamera);
+
+    console.log("✓ Certificate Verifier loaded successfully");
+  </script>
 </body>
 </html>
